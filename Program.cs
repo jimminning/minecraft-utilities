@@ -47,10 +47,58 @@ public class Program
 
 	public static void ThreeD(double maxDistance, Point3d spawner1, Point3d spawner2)
 	{
-		var spawner1Points = GetSpawnerPoints(maxDistance, spawner1);
-		var spawner2Points = GetSpawnerPoints(maxDistance, spawner2);
+		var spawner1Points = GetSpawnerActivationPoints(maxDistance, spawner1);
+		var spawner2Points = GetSpawnerActivationPoints(maxDistance, spawner2);
 		var intersectingPoints = spawner1Points.FindAll(sp1 => spawner2Points.Exists(sp2 => sp2.X == sp1.X && sp2.Y == sp1.Y && sp2.Z == sp1.Z));
+		intersectingPoints.Sort((s1, s2) => s1.Y.CompareTo(s2.Y) == 0 
+												? s1.X.CompareTo(s2.X) == 0 
+													? s1.Z.CompareTo(s2.Z) 
+													: s1.X.CompareTo(s2.X) 
+												: s1.Y.CompareTo(s2.Y));
 		DisplayIntersectionPoints(intersectingPoints);
+	}
+
+	public static double DisplayIntersectionPointSummary(List<Point3d> intersectingPoints)
+	{
+		var mostY = intersectingPoints
+							.GroupBy(x => x.Y)
+							.Select(g => new { YCoordinate = g.Key, Count = g.Count() })
+							.OrderByDescending(g => g.Count)
+							.First();
+
+		Console.WriteLine("Spawner Activation Zones Intersect!");
+		Console.WriteLine($"Intersection Coordinate Count: {intersectingPoints.Count}");
+		Console.WriteLine();
+		Console.WriteLine($"Y Coordinate with most intersections:  [Y = {mostY.YCoordinate},  Count = {mostY.Count}]");
+		Console.WriteLine();
+
+		return mostY.YCoordinate;
+	}
+
+	public static void DisplayAbreviatedIntersectionPoints(List<Point3d> intersectingPoints, double yCoordinate)
+	{
+		var filteredPoints = intersectingPoints
+				.Where(p => p.Y > (yCoordinate - 1) && p.Y < (yCoordinate + 1)).ToList();
+		filteredPoints.Sort((s1, s2) => s1.Y.CompareTo(s2.Y) == 0 ? s1.X.CompareTo(s2.X) == 0 ? s1.Z.CompareTo(s2.Z) : s1.X.CompareTo(s2.X) : s1.Y.CompareTo(s2.Y));
+		Console.WriteLine("Intersection of Spawner Activation Points:");
+		Console.WriteLine();
+		Console.WriteLine("X\tY\tZ");
+		foreach (Point3d p in filteredPoints)
+		{
+			Console.WriteLine($"{p.X}\t{p.Y}\t{p.Z}");
+		}
+	}
+
+	public static void DisplayAllIntersectionPoints(List<Point3d> intersectingPoints)
+	{
+		intersectingPoints.Sort((s1, s2) => s1.Y.CompareTo(s2.Y) == 0 ? s1.X.CompareTo(s2.X) == 0 ? s1.Z.CompareTo(s2.Z) : s1.X.CompareTo(s2.X) : s1.Y.CompareTo(s2.Y));
+		Console.WriteLine("Intersection of Spawner Activation Points:");
+		Console.WriteLine();
+		Console.WriteLine("X\tY\tZ");
+		foreach (Point3d p in intersectingPoints)
+		{
+			Console.WriteLine($"{p.X}\t{p.Y}\t{p.Z}");
+		}
 	}
 
 	public static void DisplayIntersectionPoints(List<Point3d> intersectingPoints)
@@ -60,14 +108,18 @@ public class Program
 
 		if (intersectingPoints.Any())
 		{
-			intersectingPoints.Sort((s1, s2) => s1.Y.CompareTo(s2.Y) == 0 ? s1.X.CompareTo(s2.X) == 0 ? s1.Z.CompareTo(s2.Z) : s1.X.CompareTo(s2.X) : s1.Y.CompareTo(s2.Y));
-			Console.WriteLine("Intersection of Spawner Activation Points:");
-			Console.WriteLine();
-			Console.WriteLine("X\tY\tZ");
-			foreach (Point3d p in intersectingPoints)
+			var yCoor = DisplayIntersectionPointSummary(intersectingPoints);
+
+			if (intersectingPoints.Count > 50)
 			{
-				Console.WriteLine($"{p.X}\t{p.Y}\t{p.Z}");
+				DisplayAbreviatedIntersectionPoints(intersectingPoints, yCoor);
 			}
+			else 
+			{
+				DisplayAllIntersectionPoints(intersectingPoints);
+			}
+
+			
 		}
 		else
 		{
@@ -89,27 +141,40 @@ public class Program
 
 	}
 
-	public static List<Point3d> GetSpawnerPoints(double maxDistance, Point3d spawnerPoint)
+	public static bool InActivationZone(double maxDistance, Point3d spawner, Point3d testPoint)
 	{
-		var spawnerPoints = new List<Point3d>();
+		// X² + Y² + Z² = r²
+		var r2 = Math.Pow(maxDistance+0.5,2);
+		var x2 = Math.Pow(Math.Abs(spawner.X - testPoint.X),2);
+		var y2 = Math.Pow(Math.Abs(spawner.Y - testPoint.Y),2);
+		var z2 = Math.Pow(Math.Abs(spawner.Z - testPoint.Z),2);
+
+		// Buffer
+		return Math.Floor(x2 + y2 + z2) <= Math.Floor(r2);
+
+		// Actual
+		// return (x2 + y2 + z2) <= r2;
+	}
+
+	public static List<Point3d> GetSpawnerActivationPoints(double maxDistance, Point3d spawnerPoint)
+	{
+		var spawnerActivationPoints = new List<Point3d>();
 		for (double x = spawnerPoint.X - maxDistance; x <= (spawnerPoint.X + maxDistance); x++)
 		{
 			for (double y = spawnerPoint.Y - maxDistance; y <= (spawnerPoint.Y + maxDistance); y++)
 			{
 				for (double z = spawnerPoint.Z - maxDistance; z <= (spawnerPoint.Z + maxDistance); z++)
 				{
-					var diffX = x - spawnerPoint.X;
-					var diffY = y - spawnerPoint.Y;
-					var diffZ = z - spawnerPoint.Z;
+					var testPoint = new Point3d(x,y,z);
 
-					if ((Math.Abs(diffX) + Math.Abs(diffY) + Math.Abs(diffZ)) <= maxDistance)
+					if (InActivationZone(maxDistance, spawnerPoint, testPoint))
 					{
-						spawnerPoints.Add(new Point3d(x, y, z));
+						spawnerActivationPoints.Add(testPoint);
 					}
 				}
 			}
 		}
-		return spawnerPoints;
+		return spawnerActivationPoints;
 	}
 
 	public static List<Point> GetSpawnerPoints(double maxDistance, Point spawnerPoint)
